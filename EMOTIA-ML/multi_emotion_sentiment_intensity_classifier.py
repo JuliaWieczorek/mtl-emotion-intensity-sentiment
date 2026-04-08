@@ -8,21 +8,6 @@ New improvements:
 - Integrated Focal Loss for rare emotions
 - Added gradient accumulation option
 - Better optimizer configuration
-
-
-model jest architektonicznie multi-task + multi-label,
-ale dane, które mu dajesz, wymuszają zachowanie multi-task single-emotion.
-
-Czyli:
-jedna głowa uczy się sentimentu (3 klasy),
-druga uczy się emocji (7 możliwych, ale tylko 1 aktywna na próbkę),
-trzecia uczy się intensywności (dla każdej z 7 emocji, ale tylko jedna aktywna).
-
-
--automatyczne wykrywanie trybu (multi-label / single-emotion)
--dynamiczny dobór strat i predykcji
--pomiar czasu działania
--raporty i zapis wyników
 """
 
 import time
@@ -182,19 +167,16 @@ def load_multitask_data(csv_path):
     skipped = 0
 
     for idx, row in df.iterrows():
-        # Get text
         text_val = str(row[text_col]).strip()
         if (not text_val or len(text_val) < 5) and 'original' in df.columns:
             fallback_val = str(row.get('original', '')).strip()
             if len(fallback_val) >= 5:
                 text_val = fallback_val
 
-    # Jeśli nadal brak tekstu — pomijamy wiersz
         if not text_val or len(text_val) < 5:
             skipped += 1
             continue
 
-        # Parse sentiment with improved fallback
         raw_sent = row.get('sentiment', 'neutral')
         sentiment_label = sentiment_map.get(str(raw_sent).strip().lower(), None)
 
@@ -240,7 +222,7 @@ def load_multitask_data(csv_path):
     print(f"   Emotion presence (any): {emotion_matrix.sum(axis=1).mean():.2f} avg per sample")
 
     # -------------------------
-    # 📊 Statystyka współwystępowania emocji
+    # Statystyka współwystępowania emocji
     # -------------------------
     emotion_counts = emotion_matrix.sum(axis=1)
 
@@ -260,9 +242,6 @@ def load_multitask_data(csv_path):
     print(f"   2 emotions present    : {two_emotions} samples ({100*two_emotions/len(emotion_counts):.1f}%)")
     print(f"   3+ emotions present   : {multi_emotions} samples ({100*multi_emotions/len(emotion_counts):.1f}%)")
 
-    # -------------------------
-    # Średnia intensywność emocji
-    # -------------------------
     if intensity_matrix.size > 0:
         avg_intensity_per_emotion = intensity_matrix.mean(axis=0)
         avg_intensity_all = intensity_matrix[intensity_matrix > 0].mean() if (intensity_matrix > 0).any() else 0
@@ -273,9 +252,6 @@ def load_multitask_data(csv_path):
 
     return texts, np.array(sentiments, dtype=np.int64), emotion_matrix, intensity_matrix, emotion_names, mode_type
 
-# -------------------------
-# Dataset
-# -------------------------
 class MultiTaskDataset(Dataset):
     def __init__(self, texts, sentiment_labels, emotion_labels, intensity_labels, tokenizer, max_len):
         self.texts = texts
@@ -304,9 +280,6 @@ class MultiTaskDataset(Dataset):
         item['intensities'] = torch.tensor(self.intensity_labels[idx], dtype=torch.long)
         return item
 
-# -------------------------
-# Model
-# -------------------------
 class MultiTaskBERTLSTM(nn.Module):
     def __init__(self, bert_model, num_emotions, lstm_hidden=128, lstm_layers=1, dropout=0.3, bidirectional=True):
         super().__init__()
@@ -386,9 +359,6 @@ class MultiTaskBERT(nn.Module):
         }
 
 
-# -------------------------
-# Simple Adapter Module (bottleneck)
-# -------------------------
 class AdapterModule(nn.Module):
     """
     Lightweight adapter: down-proj -> nonlinearity -> up-proj + residual
@@ -415,9 +385,6 @@ class AdapterModule(nn.Module):
         return x + z  # residual
 
 
-# -------------------------
-# Multi-task model with adapters (hard-share encoder, adapter per task)
-# -------------------------
 class MultiTaskBERTWithAdapters(nn.Module):
     """
     Hard-shared encoder (one transformer) + per-task adapters applied to pooled output.
@@ -462,9 +429,6 @@ class MultiTaskBERTWithAdapters(nn.Module):
         }
 
 
-# -------------------------
-# MMOE core
-# -------------------------
 class MMOE_Core(nn.Module):
     """
     Implementation of Mixture-of-Experts layer.
@@ -510,9 +474,6 @@ class MMOE_Core(nn.Module):
         return task_outputs
 
 
-# -------------------------
-# MultiTask with MMOE
-# -------------------------
 class MultiTaskMMOE(nn.Module):
     """
     Encoder -> MMOE -> per-task head
@@ -551,10 +512,6 @@ class MultiTaskMMOE(nn.Module):
             "intensity": self.intensity_head(i_x)
         }
 
-
-# -------------------------
-# Single-task model
-# -------------------------
 class SingleTaskModel(nn.Module):
     def __init__(self, transformer_name: str, task: str, num_emotions: int, dropout: float = 0.3):
         super().__init__()
@@ -592,10 +549,6 @@ class SingleTaskModel(nn.Module):
             "intensity": logits if self.task == "intensity" else None
         }
 
-
-# -------------------------
-# Soft-sharing model
-# -------------------------
 class SoftSharingModel(nn.Module):
     """
     Soft-sharing: separate encoders but penalize divergence between encoder parameters (L2)
@@ -647,7 +600,6 @@ class SoftSharingModel(nn.Module):
 class SoftSharingModel(nn.Module):
     """
     Soft-sharing encoder-only model.
-    Obsługuje: 1 task, 2 taski, 3 taski.
     """
     def __init__(self, transformer_name, num_emotions, tasks, dropout=0.3):
         super().__init__()
@@ -697,9 +649,6 @@ class SoftSharingModel(nn.Module):
         return l2_lambda * loss
 
 
-# -------------------------
-# Cross-stitch simple implementation (2-way cross-stitch between encoders)
-# -------------------------
 class CrossStitchModel(nn.Module):
     """
     Cross-stitch networks: learn linear combination of feature maps from different tasks.
@@ -741,9 +690,6 @@ class CrossStitchModel(nn.Module):
         return self.sentiment_head(s), self.emotion_head(e), self.intensity_head(i)
 
 
-# -------------------------
-# Single-task wrappers (for baselines)
-# -------------------------
 class SingleTaskSentiment(nn.Module):
     def __init__(self, transformer_name:str, dropout:float=0.3):
         super().__init__()
@@ -783,9 +729,6 @@ class SingleTaskIntensity(nn.Module):
         x = self.fc(out)
         return self.head(x)
 
-# -------------------------
-# Focal Loss
-# -------------------------
 class FocalLoss(nn.Module):
     def __init__(self, alpha=0.25, gamma=2):
         super().__init__()
@@ -1215,9 +1158,6 @@ def eval_epoch(model, loader, device, loss_fns, weights):
 
     return metrics, raw_outputs
 
-# -------------------------
-# Pipeline - FIXED & IMPROVED!
-# -------------------------
 def run_pipeline(csv_path, config):
     set_seed(config['seed'])
     os.makedirs(config['output_dir'], exist_ok=True)
@@ -1353,30 +1293,6 @@ def run_pipeline(csv_path, config):
         weights_full[c] = class_weights[i]
 
     class_weights_tensor = torch.tensor(weights_full, dtype=torch.float).to(device)
-
-# # 📦 Dobierz funkcje strat w zależności od trybu danych
-#     if mode_type == "multi-label":
-#         loss_fns = {
-#             "sentiment": nn.CrossEntropyLoss(weight=class_weights_tensor),
-#             "emotion": FocalLoss(alpha=config['focal_alpha'], gamma=config['focal_gamma']) if config['use_focal_loss'] else nn.BCEWithLogitsLoss(),
-#             "intensity": nn.CrossEntropyLoss()
-#         }
-#     else:  # single-emotion
-#         loss_fns = {
-#             "sentiment": nn.CrossEntropyLoss(weight=class_weights_tensor),
-#             "emotion": nn.CrossEntropyLoss(),
-#             "intensity": nn.CrossEntropyLoss()
-#         }
-
-
-
-
-    # loss_fns = {
-    #     "sentiment": nn.CrossEntropyLoss(weight=class_weights_tensor),
-    #     #"emotion": FocalLoss(alpha=config['focal_alpha'], gamma=config['focal_gamma']) if config['use_focal_loss'] else nn.BCEWithLogitsLoss(),
-    #     'emotion': FocalLoss(alpha=emotion_weights, gamma=config['focal_gamma']),
-    #     "intensity": nn.CrossEntropyLoss()
-    # }
     tasks = config["tasks"]
     loss_fns = {}
 
@@ -1677,69 +1593,6 @@ if __name__ == "__main__":
 
     config = DEFAULT_CONFIG.copy()
 
-    # ==============================================================
-    # DO WYBORU: MODEL_TYPE  — główna architektura modelu
-    # ==============================================================
-    #
-    # "bert"                    → klasyczny encoder-only multitask
-    # "bert_lstm"               → encoder + LSTM + multitask heads
-    #
-    # "adapters"                → BERT z adapterami (per-task adapters)
-    # "mmoe"                    → Mixture-of-Experts multitask model
-    # "soft_sharing"            → 3 osobne encodery + soft parameter sharing
-    # "cross_stitch"            → cross-stitch networks (mixing encoders)
-    #
-    # Single-task baseline models:
-    # "single_sentiment"        → tylko zadanie sentymentu
-    # "single_emotion"          → tylko zadanie emocji
-    # "single_intensity"        → tylko intensywność
-    #
-    # Przykład:
-    #     "model_type": "adapters"
-    #     "model_type": "mmoe"
-    #     "model_type": "soft_sharing"
-    #     "model_type": "bert_lstm"
-    #     "model_type": "single_task"
-    #
-    # ==============================================================
-    # DO WYBORU: TRANSFORMER_MODEL — encoder językowy
-    # ==============================================================
-    #
-    # Standardowe modele BERT:
-    #   "bert-base-cased"
-    #   "bert-base-uncased"
-    #
-    # Modele RoBerta:
-    #   "roberta-base"
-    #   "roberta-large"                (uwaga na GPU)
-    #
-    # Modele XLM / wielojęzyczne:
-    #   "xlm-roberta-base"
-    #   "xlm-roberta-large"            (bardzo ciężki)
-    #
-    # Modele DEEP-MO:
-    #   "cardiffnlp/twitter-roberta-base-emotion"
-    #
-    # Przykład:
-    #   "transformer_model": "bert-base-cased"
-    #   "transformer_model": "xlm-roberta-base"
-    #
-    # ==============================================================
-    # DODATKOWE PARAMETRY (opcjonalne dla niektórych modeli)
-    # ==============================================================
-    #
-    # Adaptery:
-    #   "adapter_bottleneck": 64  # szerokość bottleneck adaptera
-    #
-    # MMOE:
-    #   "num_experts": 4
-    #   "expert_hidden": 256
-    #
-    # Soft-sharing:
-    #   "soft_sharing_lambda": 1e-4   # siła regularizacji L2
-    #
-    # ==============================================================
-
     config.update({
         "model_type": "single_task", # architektura
         "transformer_model": "bert-base-uncased", # model jezykowy
@@ -1761,52 +1614,6 @@ if __name__ == "__main__":
         "warmup_ratio": 0.2, #0.1
         "gradient_accumulation_steps": 1  # Zwiększ do 4 jeśli mało GPU RAM
     })
-
-    # Jeśli masz < 500 próbek, użyj:
-    # config["batch_size"] = 8
-    # config["epochs"] = 10
-    # config["early_stopping_patience"] = 5
-    # config["dropout"] = 0.4
-    # config["gradient_accumulation_steps"] = 4
-
-    # Jak używać?
-    # Standardowa konfiguracja (>1000 próbek):
-    # config = {
-    #     "batch_size": 16,
-    #     "epochs": 6,
-    #     "use_focal_loss": True,
-    #     "warmup_ratio": 0.1,
-    #     "gradient_accumulation_steps": 1
-    # }
-    #
-    # Dla małych datasętów (<500 próbek):
-    # config = {
-    #     "batch_size": 8,
-    #     "epochs": 10,
-    #     "dropout": 0.4,
-    #     "early_stopping_patience": 5,
-    #     "gradient_accumulation_steps": 4  # Efektywny batch size = 8*4 = 32
-    # }
-    #
-    # Dla rzadkich emocji:
-    # config = {
-    #     "use_focal_loss": True,
-    #     "focal_alpha": 0.25,  # Zwiększ do 0.5 dla bardzo rzadkich
-    #     "focal_gamma": 2.0,   # Zwiększ do 3.0 dla ekstremalnie rzadkich
-    # }
-
-    # Dodatkowe rekomendacje
-    # Jeśli masz problem z overfittingiem:
-    #
-    # Zwiększ dropout do 0.4-0.5
-    # Zmniejsz lstm_hidden_dim do 64
-    # Dodaj więcej augmentacji danych
-    #
-    # Jeśli model nie uczy się:
-    #
-    # Zmniejsz learning_rate do 1e-5
-    # Zwiększ warmup_ratio do 0.2
-    # Sprawdź balans klas w danych
 
     print("\n" + "="*60)
     print("MULTI-TASK EMOTION CLASSIFIER - IMPROVED")
