@@ -17,24 +17,20 @@ def convert_to_onehot(input_csv, output_csv):
 
     df = pd.read_csv(input_csv, encoding='utf-8')
 
-    # Znajdź kolumnę tekstową
     text_cols = [c for c in df.columns
                  if any(k in c.lower() for k in ['utterance', 'text', 'augmented', 'message'])]
     text_col = text_cols[0] if text_cols else 'text'
 
-    # Zbierz wszystkie unikalne emocje
     all_emotions = set()
     for col in ['emotion1', 'emotion2', 'emotion3']:
         if col in df.columns:
             emotions = df[col].dropna().astype(str).str.lower().str.strip()
             all_emotions.update(emotions.unique())
 
-    # Usuń puste wartości
     all_emotions = sorted([e for e in all_emotions if e and e != 'nan'])
 
     print(f"Found emotions: {all_emotions}")
 
-    # Nowy DataFrame
     new_rows = []
 
     for idx, row in df.iterrows():
@@ -43,7 +39,6 @@ def convert_to_onehot(input_csv, output_csv):
             'sentiment': row.get('sentiment', 'neutral')
         }
 
-        # Zbierz emocje z tego wiersza
         present_emotions = {}
         for i in [1, 2, 3]:
             e_col = f'emotion{i}'
@@ -82,12 +77,11 @@ def convert_to_onehot(input_csv, output_csv):
 
 # Przykładowe użycie
 if __name__ == "__main__":
-    input_file = "C:/Users/juwieczo/DataspellProjects/meisd_project/pipeline/EMOTIA/EMOTIA-DA/outputs22112025/MEISD_balanced_expanded.csv" #ESConv_balanced_expanded_2D.csv"  # Twój augmentowany plik
+    input_file = "C:/Users/juwieczo/DataspellProjects/meisd_project/pipeline/EMOTIA/EMOTIA-DA/outputs22112025/MEISD_balanced_expanded.csv" #ESConv_balanced_expanded_2D.csv"
     output_file = "C:/Users/juwieczo/DataspellProjects/meisd_project/pipeline/EMOTIA/EMOTIA-DA/outputs22112025/multilabel_augmented_onehot_11222025.csv"
 
     df_converted = convert_to_onehot(input_file, output_file)
 
-    # Sprawdź format
     print("\nColumn names:")
     print(df_converted.columns.tolist())
 
