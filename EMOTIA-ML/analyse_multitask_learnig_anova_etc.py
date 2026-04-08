@@ -9,19 +9,7 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-
-# ============================================================================
-# KROK 1: PRZYGOTOWANIE DANYCH
-# ============================================================================
-
 def load_and_prepare_data(data_dict=None, csv_path=None):
-    """
-    Wczytuje i przygotowuje dane do analizy.
-
-    Args:
-        data_dict: słownik z danymi (jeśli dane są w kodzie)
-        csv_path: ścieżka do pliku CSV
-    """
     if csv_path:
         df = pd.read_csv(csv_path)
     else:
@@ -38,21 +26,11 @@ def load_and_prepare_data(data_dict=None, csv_path=None):
 
     return df
 
-
-# ============================================================================
-# KROK 2: AGREGACJA METRYK (obliczanie średnich per kombinacja)
-# ============================================================================
-
 def aggregate_metrics(df, group_cols=['architecture', 'encoder']):
-    """
-    Agreguje metryki dla każdej kombinacji architektury i encodera.
-    Liczy średnią ważoną F1-score oraz średnie precision i recall.
-    """
     print("\n" + "=" * 80)
     print("KROK 2: AGREGACJA METRYK")
     print("=" * 80)
 
-    # Obliczamy średnią ważoną F1-score (ważoną przez support)
     agg_df = df.groupby(group_cols).apply(
         lambda x: pd.Series({
             'weighted_f1': np.average(x['f1 score'], weights=x['support']),
@@ -64,7 +42,6 @@ def aggregate_metrics(df, group_cols=['architecture', 'encoder']):
         })
     ).reset_index()
 
-    # Sortujemy według weighted F1
     agg_df = agg_df.sort_values('weighted_f1', ascending=False)
 
     print("\nZagregowane metryki (posortowane według weighted F1):")
@@ -73,14 +50,7 @@ def aggregate_metrics(df, group_cols=['architecture', 'encoder']):
     return agg_df
 
 
-# ============================================================================
-# KROK 3: ANALIZA KORELACJI
-# ============================================================================
-
 def correlation_analysis(df, metrics=['precision', 'recall', 'f1 score']):
-    """
-    Analizuje korelacje między metrykami.
-    """
     print("\n" + "=" * 80)
     print("KROK 3: ANALIZA KORELACJI")
     print("=" * 80)
@@ -97,28 +67,18 @@ def correlation_analysis(df, metrics=['precision', 'recall', 'f1 score']):
     plt.title('Macierz Korelacji Metryk')
     plt.tight_layout()
     plt.savefig('correlation_matrix.png', dpi=300, bbox_inches='tight')
-    print("\n✓ Zapisano wykres: correlation_matrix.png")
+    print("\n Zapisano wykres: correlation_matrix.png")
 
     return corr_matrix
 
 
-# ============================================================================
-# KROK 4: TESTY ZAŁOŻEŃ (normalność i homogeniczność wariancji)
-# ============================================================================
-
 def test_assumptions(df, metric='f1 score', group_col='architecture'):
-    """
-    Testuje założenia do testów parametrycznych:
-    1. Normalność rozkładu (test Shapiro-Wilka)
-    2. Homogeniczność wariancji (test Levene'a)
-    """
     print("\n" + "=" * 80)
     print("KROK 4: TESTY ZAŁOŻEŃ")
     print("=" * 80)
 
     groups = df[group_col].unique()
 
-    # Test normalności dla każdej grupy
     print(f"\n4a. Test Normalności (Shapiro-Wilk) dla '{metric}':")
     print("-" * 60)
     normality_results = {}
@@ -132,9 +92,8 @@ def test_assumptions(df, metric='f1 score', group_col='architecture'):
             'is_normal': p_value > 0.05
         }
         print(f"{group:15s}: statystyka={stat:.4f}, p-value={p_value:.4f} "
-              f"{'✓ normalny' if p_value > 0.05 else '✗ nienormalny'}")
+              f"{'normalny' if p_value > 0.05 else '✗ nienormalny'}")
 
-    # Test homogeniczności wariancji
     print(f"\n4b. Test Homogeniczności Wariancji (Levene) dla '{metric}':")
     print("-" * 60)
 
@@ -148,15 +107,7 @@ def test_assumptions(df, metric='f1 score', group_col='architecture'):
     return normality_results, (stat, p_value)
 
 
-# ============================================================================
-# KROK 5: TESTY STATYSTYCZNE (ANOVA / Kruskal-Wallis)
-# ============================================================================
-
 def anova_analysis(df, metric='f1 score', group_col='architecture'):
-    """
-    Przeprowadza test ANOVA aby sprawdzić czy istnieją istotne różnice
-    między grupami (architekturami/encoderami).
-    """
     print("\n" + "=" * 80)
     print("KROK 5: ANALIZA WARIANCJI (ANOVA)")
     print("=" * 80)
@@ -172,16 +123,11 @@ def anova_analysis(df, metric='f1 score', group_col='architecture'):
     print(f"P-value: {p_value:.6f}")
 
     if p_value < 0.05:
-        print(f"\n✓ Istnieją ISTOTNE różnice między grupami (p < 0.05)")
+        print(f"\n Istnieją ISTOTNE różnice między grupami (p < 0.05)")
     else:
-        print(f"\n✗ Brak istotnych różnic między grupami (p ≥ 0.05)")
+        print(f"\n Brak istotnych różnic między grupami (p ≥ 0.05)")
 
     return f_stat, p_value
-
-
-# ============================================================================
-# KROK 6: TESTY POST-HOC (testy t-Studenta między parami)
-# ============================================================================
 
 def pairwise_t_tests(df, metric='f1 score', group_col='architecture',
                      correction='bonferroni'):
@@ -240,11 +186,6 @@ def pairwise_t_tests(df, metric='f1 score', group_col='architecture',
 
     return results_df
 
-
-# ============================================================================
-# KROK 7: RANKING I IDENTYFIKACJA NAJLEPSZYCH KOMBINACJI
-# ============================================================================
-
 def rank_combinations(agg_df, metric='weighted_f1'):
     """
     Tworzy ranking kombinacji i identyfikuje najlepsze/najgorsze.
@@ -256,11 +197,11 @@ def rank_combinations(agg_df, metric='weighted_f1'):
     ranked = agg_df.sort_values(metric, ascending=False).copy()
     ranked['rank'] = range(1, len(ranked) + 1)
 
-    print(f"\n🏆 TOP 5 najlepszych kombinacji (według {metric}):")
+    print(f"\n TOP 5 najlepszych kombinacji (według {metric}):")
     print("-" * 80)
     print(ranked.head(5).to_string(index=False))
 
-    print(f"\n⚠️  TOP 5 najsłabszych kombinacji:")
+    print(f"\n TOP 5 najsłabszych kombinacji:")
     print("-" * 80)
     print(ranked.tail(5).to_string(index=False))
 
@@ -268,18 +209,13 @@ def rank_combinations(agg_df, metric='weighted_f1'):
     best = ranked.iloc[0]
     worst = ranked.iloc[-1]
 
-    print(f"\n📊 PORÓWNANIE:")
+    print(f"\n PORÓWNANIE:")
     print(f"Najlepsza:  {best['architecture']:15s} + {best['encoder']:10s} = {best[metric]:.4f}")
     print(f"Najsłabsza: {worst['architecture']:15s} + {worst['encoder']:10s} = {worst[metric]:.4f}")
     print(
         f"Różnica:    {best[metric] - worst[metric]:.4f} ({((best[metric] - worst[metric]) / worst[metric] * 100):.2f}%)")
 
     return ranked
-
-
-# ============================================================================
-# KROK 8: ANALIZA WPŁYWU ARCHITEKTURY I ENCODERA
-# ============================================================================
 
 def analyze_factors(df, agg_df):
     """
@@ -332,11 +268,6 @@ def analyze_factors(df, agg_df):
 
     return arch_means, enc_means
 
-
-# ============================================================================
-# KROK 9: ANALIZA WYDAJNOŚCI PER KLASA
-# ============================================================================
-
 def analyze_per_class(df):
     """
     Analizuje wydajność dla każdej klasy sentymentu osobno.
@@ -367,10 +298,6 @@ def analyze_per_class(df):
         print(f"  Min F1:     {subset['f1 score'].min():.4f}")
         print(f"  Max F1:     {subset['f1 score'].max():.4f}")
 
-
-# ============================================================================
-# KROK 10: WIZUALIZACJA KOMPLEKSOWA
-# ============================================================================
 
 def create_comprehensive_visualization(df, agg_df):
     """
@@ -446,11 +373,6 @@ def create_comprehensive_visualization(df, agg_df):
     print("\n✓ Zapisano dashboard: comprehensive_dashboard.png")
     plt.close()
 
-
-# ============================================================================
-# KROK 11: PODSUMOWANIE I WNIOSKI
-# ============================================================================
-
 def generate_summary(agg_df, arch_means, enc_means, correlation_matrix):
     """
     Generuje podsumowanie i wnioski z analizy.
@@ -462,7 +384,7 @@ def generate_summary(agg_df, arch_means, enc_means, correlation_matrix):
     best = agg_df.iloc[0]
     worst = agg_df.iloc[-1]
 
-    print("\n🎯 KLUCZOWE WNIOSKI:")
+    print("\n KLUCZOWE WNIOSKI:")
     print("-" * 80)
 
     print(f"\n1. NAJLEPSZA KOMBINACJA:")
@@ -488,7 +410,6 @@ def generate_summary(agg_df, arch_means, enc_means, correlation_matrix):
     print(f"   Precision-F1: {correlation_matrix.loc['precision', 'f1 score']:.3f}")
     print(f"   Recall-F1: {correlation_matrix.loc['recall', 'f1 score']:.3f}")
 
-    # Zapisz do pliku
     with open('analysis_summary.txt', 'w', encoding='utf-8') as f:
         f.write("=" * 80 + "\n")
         f.write("PODSUMOWANIE ANALIZY MULTI-TASK LEARNING\n")
@@ -502,10 +423,6 @@ def generate_summary(agg_df, arch_means, enc_means, correlation_matrix):
 
     print("\n✓ Zapisano podsumowanie: analysis_summary.txt")
 
-
-# ============================================================================
-# GŁÓWNA FUNKCJA URUCHAMIAJĄCA CAŁĄ ANALIZĘ
-# ============================================================================
 
 def run_complete_analysis(data_dict=None, csv_path=None):
     """
@@ -552,7 +469,7 @@ def run_complete_analysis(data_dict=None, csv_path=None):
     generate_summary(agg_df, arch_means, enc_means, corr_matrix)
 
     print("\n" + "=" * 80)
-    print("✅ ANALIZA ZAKOŃCZONA POMYŚLNIE!")
+    print("ANALIZA ZAKOŃCZONA POMYŚLNIE!")
     print("=" * 80)
     print("\nWygenerowane pliki:")
     print("  • correlation_matrix.png")
@@ -570,11 +487,6 @@ def run_complete_analysis(data_dict=None, csv_path=None):
         'pairwise_arch': pairwise_arch,
         'pairwise_enc': pairwise_enc
     }
-
-
-# ============================================================================
-# PRZYKŁAD UŻYCIA
-# ============================================================================
 
 if __name__ == "__main__":
 
