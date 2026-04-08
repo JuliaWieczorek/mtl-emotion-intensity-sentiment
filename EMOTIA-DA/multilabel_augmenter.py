@@ -524,7 +524,6 @@ class MultilabelMEISDAugmenter:
 
         text_lower = text.lower()
 
-        # Sprawdź niedozwolone wzorce
         invalid_patterns = [
             'intensity',
             'rewritten',
@@ -543,11 +542,9 @@ class MultilabelMEISDAugmenter:
             if pattern in text_lower:
                 return False
 
-        # Sprawdź gwiazdki
         if '*' in text:
             return False
 
-        # Sprawdź nawiasy z cyframi (intensity markers)
         if re.search(r'\(\s*intensity\s+\d+\s*\)', text_lower):
             return False
 
@@ -589,17 +586,9 @@ class MultilabelMEISDAugmenter:
         print("\n" + "="*70)
 
     def _llm_transform_multi(self, text, emotion_bundle, sentiment, patterns):
-        """
-        FIXED: Emocje wyrażane IMPLICITNIE przez treść, NIE poprzez nazywanie
-        - Używa sytuacji/zdarzeń charakterystycznych dla emocji
-        - Używa fizycznych objawów i reakcji
-        - Używa myśli i reakcji behawioralnych
-        - BEZ bezpośredniego nazywania emocji (sad, angry, neutral, etc.)
-        """
         if not self.llm:
             return text
 
-        # === MAPOWANIE EMOCJI NA SYTUACJE/OBJAWY (zamiast nazw) ===
         emotion_cues = {
             ('sad', 1): "things feel a bit off, nothing seems worth the effort",
             ('sad', 2): "everything feels heavy, can't stop thinking about what went wrong",
@@ -638,7 +627,6 @@ class MultilabelMEISDAugmenter:
             ('neutral', 3): "everything just feels flat and empty"
         }
 
-        # Zbierz wskazówki emocjonalne (BEZ nazw emocji)
         emotional_cues = []
         for emotion, intensity in emotion_bundle:
             key = (emotion, int(intensity))
@@ -650,11 +638,9 @@ class MultilabelMEISDAugmenter:
 
         target_len = int(patterns.get('avg_length', 50))
 
-        # === ZBIERZ PRZYKŁADY (filtruj te z nazwami emocji) ===
         all_examples = []
         seen_examples = set()
 
-        # ROZSZERZONA lista słów emocji do filtrowania
         emotion_keywords = ['sad', 'angry', 'anxious', 'afraid', 'disgusted', 'surprised',
                             'joyful', 'hopeful', 'neutral', 'happy', 'fear', 'anger',
                             'sadness', 'joy', 'disgust', 'anxiety', 'surprise', 'scared',
@@ -679,7 +665,6 @@ class MultilabelMEISDAugmenter:
 
         examples_str = "\n".join([f"- {ex}" for ex in all_examples]) if all_examples else "(no clean examples available)"
 
-        # === UPROSZCZONY PROMPT - mniej restrykcyjny ===
         prompt = f"""Rewrite this message as someone talking to a therapist. Show their emotional state through what they describe, not by naming emotions.
 
 Original: "{text}"
@@ -807,9 +792,6 @@ Message:"""
         return cleaned
 
     def _eda_transform_multi(self, text, emotion_bundle, sentiment, patterns):
-        """
-        POPRAWIONY: Rule-based bez meta-informacji
-        """
         transformed = text
         words = transformed.split()
 
@@ -822,7 +804,6 @@ Message:"""
             intensifiers = ['very', 'really', 'so']
             starters = ['i', 'it', 'this']
 
-        # Filtruj keywords - BEZ meta-słów
         meta_words = ['intensity', 'emotion', 'feeling', 'express', 'convey']
         keywords = [k for k in keywords if k.lower() not in meta_words]
 
@@ -880,7 +861,6 @@ Message:"""
         elif len(words) > target_len * 1.6:
             transformed = " ".join(words[:int(target_len * 1.2)])
 
-        # Dodaj pronoun jeśli brakuje
         if not any(p in transformed.lower() for p in ['i ', ' me ', 'my ', 'myself', "i'm"]):
             if random.random() < 0.3:  # Obniżone prawdopodobieństwo
                 if transformed and transformed[0].isupper():
@@ -888,8 +868,6 @@ Message:"""
                 else:
                     transformed = "I " + transformed
 
-        # === FINALNE CZYSZCZENIE ===
-        # Usuń gwiazdki jeśli jakimś cudem się pojawiły
         transformed = re.sub(r'\*+', '', transformed)
         transformed = re.sub(r'\s+', ' ', transformed).strip()
 
@@ -1017,7 +995,6 @@ def merge_patterns_for_bundle(esconv_processor, emotion_bundle, sentiment):
     }
     counts = 0
 
-    # NOWE: Domyślne intensyfikatory jeśli nic nie znajdziemy
     default_intensifiers = ['very', 'really', 'so', 'quite', 'extremely']
 
     for (emotion, intensity) in emotion_bundle:
@@ -1045,7 +1022,6 @@ def merge_patterns_for_bundle(esconv_processor, emotion_bundle, sentiment):
         examples = esconv_processor.get_examples(emotion, int(intensity), sentiment, max_examples=2)
         merged["examples"].extend(examples)
 
-    # NOWE: Walidacja długości
     if counts > 0:
         merged["avg_length"] = merged["avg_length"] / counts
     else:
@@ -1056,11 +1032,9 @@ def merge_patterns_for_bundle(esconv_processor, emotion_bundle, sentiment):
         else:
             merged["avg_length"] = 50.0  # Ostateczny fallback
 
-    # NOWE: Walidacja starter'ów
     if not merged["sentence_starters"]:
         merged["sentence_starters"] = {'i', 'it', 'that', 'this', 'my', 'the'}
 
-    # NOWE: Walidacja keywords
     if not merged["keywords"]:
         # Wyciągnij z przykładów jako fallback
         if merged["examples"]:
@@ -1086,7 +1060,6 @@ def filter_meisd_for_esconv_compatibility_FIXED(
         allowed_intensities=[1.0, 2.0, 3.0],
         remove_incompatible_emotions=True
 ):
-    """FIXED: Filter MEISD for ALL 3 emotions"""
     print("\n" + "=" * 70)
     print("FILTERING MEISD FOR ESCONV COMPATIBILITY (ALL 3 EMOTIONS)")
     print("=" * 70)
@@ -1447,40 +1420,7 @@ if __name__ == "__main__":
         llama_obj=llm
     )
     augmenter.setup()
-
-    # ========================================
-    # STEP 5: Test augmentation
-    # ========================================
-    # print("\n[5/5] Testing augmentation (3 samples)...")
-    #
-    # mode = 'mixed' if llm else 'eda'
-    # df_aug = augmenter.augment_multilabel(
-    #     num_samples=10,
-    #     mode='llm',
-    #     save_details=True
-    # )
-    #
-    # # Save augmented samples
-    # aug_output_path = OUTPUT_DIR / "MEISD_augmented_TEST.csv"
-    # df_aug.to_csv(aug_output_path, index=False, encoding='utf-8')
-    # print(f"Augmented samples saved: {aug_output_path}")
-    #
-    # # Save quality summary
-    # summary = summarize_augmentation_quality(
-    #     df_aug,
-    #     mode,
-    #     save_path=OUTPUT_DIR / "augmentation_quality_summary.csv"
-    # )
-    #
-    # print("\n" + "="*70)
-    # print("=== AUGMENTATION SUMMARY ===")
-    # print("="*70)
-    # for key, value in summary.items():
-    #     print(f"  {key}: {value}")
-
-    # ========================================
-    # OPTIONAL: Balance and expand dataset
-    # ========================================
+    
     print("\n" + "="*70)
     print("Optional: Balance and expand dataset?")
     print("  Uncomment code below to run full balancing")
