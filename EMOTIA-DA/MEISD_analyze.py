@@ -8,9 +8,8 @@ from pathlib import Path
 # 1. LOAD DATA
 # =========================
 
-# ZMIEN SCIEZKE
 BASE_DIR = Path(__file__).resolve().parent
-PROJECT_DIR = BASE_DIR.parent.parent.parent #C:\Users\juwieczo\DataspellProjects\meisd_project\pipeline
+PROJECT_DIR = BASE_DIR.parent.parent.parent
 FILE_PATH = PROJECT_DIR / "data" / "MEISD_text.csv"
 
 df = pd.read_csv(FILE_PATH)
@@ -29,7 +28,6 @@ def normalize_label(x):
     x = str(x).strip().lower()
     if x in ["", "neutral", "nan"]:
         return None
-    # opcjonalnie: odrzucanie oczywistych błędów
     if not x.isalpha():
         return None
     return x
@@ -140,7 +138,6 @@ table_sentiment.to_csv("table_sentiment_multilabel.csv", index=False)
 # 8. TABLE 5: INTENSITY vs NUMBER OF EMOTIONS
 # =========================
 
-# zamiana intensywnosci na numeric
 for col in intensity_cols:
     df[col] = pd.to_numeric(df[col], errors="coerce")
 
@@ -185,4 +182,4 @@ table_emotion_freq["Percentage"] = (
 
 table_emotion_freq.to_csv("table_emotion_frequency.csv", index=False)
 
-print("✅ All tables generated successfully.")
+print("All tables generated successfully.")
