@@ -108,3 +108,38 @@ This work explores multi-task learning for affective computing in conversational
 ## 📬 Contact
 
 For questions or collaboration, feel free to reach out.
+
+---
+
+## Publication and provenance
+
+This is the publication-facing repository for **Multi-Task Aware Learning for
+Joint Emotion, Intensity, and Sentiment Analysis**. Earlier development versions
+of several scripts remain in `meisd_project/pipeline/EMOTIA/`; use this
+repository when citing or auditing the submitted manuscript, and use the older
+workspace only to trace development provenance.
+
+## Paper-to-code map
+
+| Manuscript component | Primary location |
+|---|---|
+| MEISD analysis and one-hot preparation | `EMOTIA-DA/MEISD_analyze.py`, `EMOTIA-DA/one_hot_encoding.py` |
+| Multi-label-aware augmentation | `EMOTIA-DA/multilabel_augmenter.py` |
+| Single-, two-, and three-task models | `EMOTIA-ML/multi_emotion_sentiment_intensity_classifier.py` |
+| Architecture and statistical analysis | `EMOTIA-ML/analyse_multitask_learnig_anova_etc.py` |
+| Dataset and training diagnostics | remaining analysis scripts in `EMOTIA-ML/` |
+
+## Reproducibility status
+
+The repository is a historical research snapshot rather than an installable
+package. Some entry points assume locally generated files and the original
+environment is not fully pinned. Read [REPRODUCIBILITY.md](REPRODUCIBILITY.md)
+before running the pipeline. Preserve the commit, data hashes, model
+configuration, task weights, seeds, and generated predictions for every new
+experiment.
+
+## Data policy
+
+Follow the licences and access conditions of MEISD and ESConv. Do not commit
+restricted conversations, local language-model weights, credentials, trained
+checkpoints, or participant-level predictions.
