@@ -9,4 +9,4 @@ __pycache__/
 *.safetensors
 outputs*/
 runtime_log.txt
-
+data/SemEval2018-Task1-all-data.zip
