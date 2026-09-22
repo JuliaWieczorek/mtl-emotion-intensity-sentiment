@@ -54,6 +54,11 @@ The experiments are based on:
 * **MEISD** – multi-label conversational dataset with emotion and intensity annotations
 * **ESConv** – mental health support conversations dataset
 
+An optional, independent transfer check on **SemEval-2018 EI-oc** is documented
+in [external_validation/README.md](external_validation/README.md). It compares
+target-only training with matched MEISD single-task and soft-sharing multi-task
+encoder pretraining.
+
 ---
 
 ## ⚙️ Methods
